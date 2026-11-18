@@ -11,8 +11,8 @@ android {
         applicationId 'com.danryu.glowmoth'
         minSdk 24
         targetSdk 35
-        versionCode 13
-        versionName "1.5.0"
+        versionCode 14
+        versionName "1.6.0"
     }
 
     // The debug keystore is the app's identity for updates: losing it means
