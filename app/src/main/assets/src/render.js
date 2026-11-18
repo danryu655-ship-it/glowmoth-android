@@ -885,7 +885,7 @@ export function createRenderer(canvas) {
     }
     label(ctx, 'FLARE', W - 90, 84, { font: `600 10px ${MONO_FONT}`, color: C.textDim, spacing: 2 });
 
-    label(ctx, 'WASD / ARROWS / MOUSE TO FLY   ·   SPACE / CLICK TO FLARE   ·   P PAUSE   ·   M MUTE', W / 2, H - 14, {
+    label(ctx, 'LEFT THUMB: JOYSTICK TO FLY   ·   TAP TO FLARE', W / 2, H - 14, {
       font: `500 12px ${MONO_FONT}`,
       color: 'rgba(169, 183, 201, 0.6)',
       align: 'center',
