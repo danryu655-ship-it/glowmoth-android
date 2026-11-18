@@ -9,7 +9,7 @@ import { createAudio } from './audio.js';
 import { createInput } from './input.js';
 import { createRenderer, SCREEN_DAWN, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_VICTORY } from './render.js';
 import {
-  createWorld, EVENT_DEW, EVENT_HIT, EVENT_LANTERN, EVENT_NIGHT, EVENT_OVER, EVENT_SPARK,
+  createWorld, EVENT_DEW, EVENT_HIT, EVENT_LANTERN, EVENT_NIGHT, EVENT_OVER, EVENT_SHIELD, EVENT_SPARK,
 } from './world.js';
 import { stageShot } from './shots.js';
 
@@ -168,6 +168,15 @@ function runGame() {
     if (events & EVENT_HIT) {
       audio.play('hit');
       announce(world.state.lives === 1 ? 'Hit. One life left.' : `Hit. ${world.state.lives} lives left.`);
+    }
+    if (events & EVENT_SHIELD) {
+      if (world.state.shield) {
+        audio.play('shield');
+        announce('Lulu memberi perisai.');
+      } else {
+        audio.play('shieldBreak');
+        announce('Perisai pecah!');
+      }
     }
     if (events & EVENT_LANTERN) audio.play('lantern');
     if (events & EVENT_DEW) {

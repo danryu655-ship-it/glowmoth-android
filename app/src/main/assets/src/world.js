@@ -3,7 +3,7 @@
 // a bit set of events for main.js to turn into screens, sound and announcements.
 
 import {
-  BOSS, COMPANION, DEW, FIELD, FLARE, HAZARD, LANTERN, MOTE, MOTH, RUN,
+  BOSS, COMPANION, DEW, FIELD, FLARE, HAZARD, LANTERN, MOTE, MOTH, RUN, SHIELD,
 } from './config.js';
 import {
   createBoss, createCompanion, createMoth, resetLanterns, spawnBossDart, spawnDart, spawnDew, spawnMote, spawnShade, updateCompanion, updateDart, updateMote, updateShade,
@@ -17,6 +17,7 @@ export const EVENT_LANTERN = 4;
 export const EVENT_NIGHT = 8;
 export const EVENT_DEW = 16;
 export const EVENT_SPARK = 32;
+export const EVENT_SHIELD = 64;
 
 export function createWorld(seed) {
   let rand = createRandom(seed);
@@ -60,6 +61,10 @@ export function createWorld(seed) {
     bossTimer: 0,
     bossBonus: 0,
     beam: null,
+    // ANDROID BUILD ONLY (v1.4.0) — Lulu's shield.
+    shield: false,
+    shieldTimer: SHIELD.interval,
+    shieldPop: 0,
   };
 
   function seedRun() {
@@ -107,6 +112,9 @@ export function createWorld(seed) {
     state.bossTimer = 0;
     state.bossBonus = 0;
     state.beam = null;
+    state.shield = false;
+    state.shieldTimer = SHIELD.interval;
+    state.shieldPop = 0;
     for (let index = 0; index < 5; index += 1) spawnMote(state, rand);
   }
 
@@ -245,6 +253,31 @@ export function createWorld(seed) {
 
   function hitBy(hazard) {
     if (state.player.invuln > 0) return 0;
+    // ANDROID BUILD ONLY (v1.4.0) — Lulu's shield absorbs one hit whole:
+    // no life lost, no combo break, just the shield shattering.
+    if (state.shield) {
+      state.shield = false;
+      state.shieldTimer = SHIELD.interval;
+      state.shieldPop = SHIELD.popLife;
+      state.player.invuln = MOTH.invulnerable;
+      hazard.stun = 1.5;
+      const angle = Math.atan2(hazard.y - state.player.y, hazard.x - state.player.x);
+      hazard.vx = Math.cos(angle) * 260;
+      hazard.vy = Math.sin(angle) * 260;
+      burst(state, rand, state.player.x, state.player.y, {
+        count: 22,
+        colors: ['#8ecbff', '#d8efff', '#ffffff'],
+        speed: 260,
+        life: 0.8,
+        size: 3.2,
+        gravity: 0,
+      });
+      state.pops.push({
+        x: state.player.x, y: state.player.y - 44, text: 'SHIELD!', age: 0, life: 1.1, big: true,
+      });
+      state.lastEvent |= EVENT_SHIELD;
+      return 0;
+    }
     state.lives -= 1;
     state.player.invuln = MOTH.invulnerable;
     state.chain = 0;
@@ -381,6 +414,21 @@ export function createWorld(seed) {
         state.bossTimer = BOSS.attackGap + rand.range(0, 1);
       }
     }
+
+    // ANDROID BUILD ONLY (v1.4.0) — Lulu's shield: one free hit every
+    // minute once she has joined. The timer runs only while no shield is up.
+    if (state.lulu && !state.shield) {
+      state.shieldTimer -= dt;
+      if (state.shieldTimer <= 0) {
+        state.shield = true;
+        state.shieldTimer = SHIELD.interval;
+        state.pops.push({
+          x: state.player.x, y: state.player.y - 44, text: 'SHIELD SIAP!', age: 0, life: 1.2, big: true,
+        });
+        state.lastEvent |= EVENT_SHIELD;
+      }
+    }
+    state.shieldPop = Math.max(0, state.shieldPop - dt);
 
     for (const lantern of state.lanterns) {
       lantern.pulse = Math.max(0, lantern.pulse - dt * 1.4);

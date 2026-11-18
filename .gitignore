@@ -1,3 +1,7 @@
 .gradle/
 app/build/
 local.properties
+
+# Signing key — the app identity, never committed
+app/debug.keystore
+debug.keystore

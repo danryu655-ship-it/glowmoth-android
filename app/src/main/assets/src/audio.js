@@ -183,6 +183,14 @@ export function createAudio() {
         tone({ frequency: 523.25, duration: 0.2, type: 'sine', volume: 0.16 });
         tone({ frequency: 783.99, duration: 0.35, type: 'sine', volume: 0.12, delay: 0.1 });
         break;
+      case 'shield':
+        tone({ frequency: 880, duration: 0.25, type: 'sine', volume: 0.14 });
+        tone({ frequency: 1318.5, duration: 0.4, type: 'sine', volume: 0.11, delay: 0.09 });
+        break;
+      case 'shieldBreak':
+        tone({ frequency: 1046.5, endFrequency: 392, duration: 0.28, type: 'triangle', volume: 0.15 });
+        noise({ duration: 0.18, volume: 0.07, lowpass: 3200 });
+        break;
       case 'lantern':
         [523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => {
           tone({ frequency, duration: 0.55, type: 'triangle', volume: 0.13, delay: index * 0.06 });

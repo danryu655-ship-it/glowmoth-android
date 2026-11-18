@@ -2,7 +2,7 @@
 // nothing about the rules; it reads a world state and draws it. All art is vector and gradient
 // work on one canvas, with no image or font file anywhere.
 
-import { BOSS, FIELD, LANTERN, PALETTE as C, RUN, STRINGS } from './config.js';
+import { BOSS, FIELD, LANTERN, PALETTE as C, RUN, SHIELD, STRINGS } from './config.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -876,6 +876,47 @@ export function createRenderer(canvas) {
 
   const FLARE_RADIUS = 255;
 
+  // ANDROID BUILD ONLY (v1.4.0) — Lulu's shield: pulsing blue bubble
+  // around the moth while it holds, expanding ring when it shatters.
+  function drawShield(state, time) {
+    const player = state.player;
+    const pulse = 0.75 + 0.25 * Math.sin(time * 5);
+    const radius = SHIELD.radius * (1 + 0.03 * Math.sin(time * 5));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(player.x, player.y, radius * 0.4, player.x, player.y, radius * 1.35);
+    glow.addColorStop(0, 'rgba(142, 203, 255, 0)');
+    glow.addColorStop(0.7, `rgba(142, 203, 255, ${(0.10 * pulse).toFixed(3)})`);
+    glow.addColorStop(1, 'rgba(142, 203, 255, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, radius * 1.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(142, 203, 255, ${(0.10 * pulse).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(216, 239, 255, ${(0.85 * pulse).toFixed(3)})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawShieldPop(state) {
+    const t = 1 - state.shieldPop / SHIELD.popLife;
+    const radius = SHIELD.radius + t * 55;
+    ctx.save();
+    ctx.strokeStyle = `rgba(142, 203, 255, ${((1 - t) * 0.9).toFixed(3)})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(state.player.x, state.player.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawField(state, time, hideMoth = false, sparse = false) {
     ctx.drawImage(base, 0, 0);
     drawFireflies(state, time);
@@ -894,6 +935,8 @@ export function createRenderer(canvas) {
       if (state.lumi && state.lumiPos) drawCompanion(state.lumiPos, time);
       if (state.lulu && state.luluPos) drawCompanion(state.luluPos, time);
     }
+    if (!hideMoth && state.shield) drawShield(state, time);
+    if (!hideMoth && state.shieldPop > 0) drawShieldPop(state);
     drawParticles(state);
     const vignette = ctx.createRadialGradient(W / 2, H / 2, 240, W / 2, H / 2, 760);
     vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
@@ -980,6 +1023,28 @@ export function createRenderer(canvas) {
     ctx.beginPath();
     ctx.arc(0, 1, 2.1, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  // ANDROID BUILD ONLY (v1.4.0) — small shield icon for the HUD.
+  function drawShieldIcon(x, y, filled) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.beginPath();
+    ctx.moveTo(0, -11);
+    ctx.lineTo(9, -7);
+    ctx.lineTo(9, 1);
+    ctx.quadraticCurveTo(9, 8, 0, 12);
+    ctx.quadraticCurveTo(-9, 8, -9, 1);
+    ctx.lineTo(-9, -7);
+    ctx.closePath();
+    ctx.fillStyle = filled ? 'rgba(142, 203, 255, 0.95)' : 'rgba(142, 203, 255, 0.18)';
+    ctx.fill();
+    if (filled) {
+      ctx.strokeStyle = 'rgba(216, 239, 255, 0.85)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -1082,6 +1147,12 @@ export function createRenderer(canvas) {
       drawLanternLifeIcon(W - 196 - (maxLives - RUN.lives) * 34 + index * 34, 50, index < state.lives);
     }
     label(ctx, 'LIVES', W - 196, 84, { font: `600 10px ${MONO_FONT}`, color: C.textDim, spacing: 2 });
+    // ANDROID BUILD ONLY (v1.4.0) — Lulu's shield status.
+    if (state.lulu) {
+      drawShieldIcon(292, 50, state.shield);
+      label(ctx, 'SHIELD', 312, 42, { font: `600 10px ${MONO_FONT}`, color: C.textDim, spacing: 2 });
+      label(ctx, state.shield ? 'AKTIF' : `${Math.ceil(state.shieldTimer)}s`, 312, 70, { font: `700 20px ${MONO_FONT}`, color: state.shield ? C.lulu : C.textDim });
+    }
     for (let index = 0; index < RUN.maxSparks; index += 1) {
       drawSparkIcon(W - 84 + index * 24, 50, index < state.sparks);
     }

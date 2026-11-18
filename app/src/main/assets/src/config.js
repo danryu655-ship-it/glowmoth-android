@@ -69,6 +69,13 @@ export const FLARE = {
   push: 430,
 };
 
+// ANDROID BUILD ONLY (v1.4.0) — Lulu's shield.
+export const SHIELD = {
+  interval: 60,
+  radius: 46,
+  popLife: 0.45,
+};
+
 // ANDROID BUILD ONLY (v1.3.0) — companions and the boss.
 export const COMPANION = {
   magnetRadius: 120,
