@@ -102,14 +102,19 @@ export const STRINGS = {
   subtitle: 'LANTERN NIGHT',
   tagline: 'Keep the meadow alight until dawn.',
   begin: 'PRESS ENTER OR CLICK TO FLY',
-  controls: 'WASD / ARROWS / MOUSE — FLY      SPACE / CLICK — FLARE      P — PAUSE      M — MUTE',
-  goal: 'Collect golden motes to light four lanterns.  Survive three nights.',
+  controls: 'LEFT THUMB: JOYSTICK — FLY      TAP — FLARE',
+  goal: 'Lumi dan Lulu dipenjara Dark Pekat. Nyalakan 4 lampion tiap malam untuk membebaskan mereka.',
   over: 'THE NIGHT TAKES YOU',
-  overSub: 'The lanterns dim, and the meadow goes quiet.',
+  overSub: 'Lumi dan Lulu masih menunggu dalam gelap.',
   victory: 'DAWN BREAKS',
-  victorySub: 'You kept the meadow alight until morning.',
+  victorySub: 'Lumi dan Lulu bebas — Dark Pekat kalah, taman kembali bercahaya.',
   again: 'PRESS ENTER OR CLICK TO FLY AGAIN',
   dawn: 'NIGHT SURVIVED',
   dawnSub: 'The lanterns hold the dark at bay.',
+  // ANDROID BUILD ONLY — story line shown on each dawn screen (index: night - 1).
+  dawnStory: [
+    'Malam pertama berlalu. Satu lampion menyala — dari kejauhan, Lumi dan Lulu masih memanggil.',
+    'Malam kedua berlalu. Bayangan Dark Pekat semakin gelap, tapi cahaya Luma semakin terang.',
+  ],
   next: 'PRESS ENTER OR CLICK FOR THE NEXT NIGHT',
 };

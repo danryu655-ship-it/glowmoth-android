@@ -1,6 +1,11 @@
-// Every sound is synthesised in Web Audio: no files, no network. The context is created on
-// the first key press or click (browsers require a gesture), and a quiet two-oscillator pad
-// sits under the effects. M mutes everything and the choice survives a reload.
+// Sound effects are synthesised in Web Audio: no files, no network. The context is created
+// on the first key press or click (browsers require a gesture), and a quiet two-oscillator
+// pad sits under the effects. M mutes everything and the choice survives a reload.
+// ANDROID BUILD ONLY — music: two bundled tracks in audio/ (still no network).
+// 'opening' plays on the title, dawn, victory and game-over screens; 'game' plays
+// during a night. Switching is wired into play(): 'start' -> game, 'clear' /
+// 'victory' / 'over' -> opening. The tracks are plain <audio> elements so they
+// can start on the title screen without a gesture (the wrapper allows autoplay).
 
 const MUTE_KEY = 'glowmoth.muted.v1';
 
@@ -18,6 +23,60 @@ export function createAudio() {
   let padGain = null;
   let muted = readMuted();
   let started = false;
+
+  // --- Music (Android only): two bundled <audio> loops. ---
+  const MUSIC_VOLUME = 0.3;
+  let currentTrack = 'opening';
+  let fadeTimer = null;
+
+  function makeTrack(file) {
+    const element = document.createElement('audio');
+    element.src = new URL(`audio/${file}`, document.baseURI).href;
+    element.loop = true;
+    element.preload = 'auto';
+    element.volume = 0;
+    element.muted = muted;
+    return element;
+  }
+
+  const openingTrack = makeTrack('opening.mp3');
+  const gameTrack = makeTrack('game.mp3');
+
+  function fadeTo(element, target) {
+    if (fadeTimer !== null) {
+      clearInterval(fadeTimer);
+      fadeTimer = null;
+    }
+    const steps = 16;
+    let step = 0;
+    const from = element.volume;
+    fadeTimer = setInterval(() => {
+      step += 1;
+      element.volume = from + (target - from) * (step / steps);
+      if (step >= steps) {
+        clearInterval(fadeTimer);
+        fadeTimer = null;
+        element.volume = target;
+        if (target === 0) element.pause();
+      }
+    }, 50);
+  }
+
+  function setMusic(which) {
+    if (currentTrack === which) return;
+    const prev = currentTrack === 'game' ? gameTrack : openingTrack;
+    const next = which === 'game' ? gameTrack : openingTrack;
+    currentTrack = which;
+    if (prev !== next) fadeTo(prev, 0);
+    next.play().catch(() => {});
+    fadeTo(next, MUSIC_VOLUME);
+  }
+
+  // Try to start the opening track at once (the Android wrapper allows
+  // autoplay); where a gesture is required this fails silently and unlock()
+  // below retries it on the first tap or key press.
+  openingTrack.play().catch(() => {});
+  fadeTo(openingTrack, MUSIC_VOLUME);
 
   function ensure() {
     if (context === null) {
@@ -101,10 +160,14 @@ export function createAudio() {
     const created = ensure();
     if (created === null) return;
     startPad();
+    const track = currentTrack === 'game' ? gameTrack : openingTrack;
+    track.play().catch(() => {});
   }
 
   function play(name, detail = 0) {
     if (context === null) return;
+    if (name === 'start') setMusic('game');
+    if (name === 'clear' || name === 'victory' || name === 'over') setMusic('opening');
     switch (name) {
       case 'start':
         tone({ frequency: 392, duration: 0.16, type: 'triangle', volume: 0.16 });
@@ -161,6 +224,8 @@ export function createAudio() {
       // Private windows keep the choice for this visit only.
     }
     if (master !== null) master.gain.value = muted ? 0 : 0.42;
+    openingTrack.muted = muted;
+    gameTrack.muted = muted;
     return muted;
   }
 

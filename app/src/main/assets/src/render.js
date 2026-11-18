@@ -1014,7 +1014,12 @@ export function createRenderer(canvas) {
   function drawDawnScreen(state, time, demo = false) {
     overlay(0.58);
     label(ctx, STRINGS.dawn, W / 2, 208, { font: `700 62px ${TITLE_FONT}`, color: C.amber, align: 'center', spacing: 6, glow: 26, glowColor: 'rgba(255, 207, 107, 0.5)' });
-    label(ctx, `${STRINGS.dawnSub}  Night ${state.night + 1} waits beyond the trees.`, W / 2, 260, { font: `italic 500 22px ${TITLE_FONT}`, color: 'rgba(247, 241, 220, 0.9)', align: 'center' });
+    // ANDROID BUILD ONLY — story line for the night just survived. After night 3
+    // (endless mode) Lumi and Lulu are free and guard the garden with Luma.
+    const dawnStory = state.night <= STRINGS.dawnStory.length
+      ? STRINGS.dawnStory[state.night - 1]
+      : `Malam ${state.night} berlalu. Luma, Lumi, dan Lulu menjaga taman bersama.`;
+    label(ctx, dawnStory, W / 2, 260, { font: `italic 500 22px ${TITLE_FONT}`, color: 'rgba(247, 241, 220, 0.9)', align: 'center' });
     label(ctx, `NIGHT ${state.night} COMPLETE`, W / 2, 330, { font: `600 13px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 4 });
     label(ctx, `+${state.bonus.toLocaleString('en-US')}`, W / 2, 390, { font: `700 52px ${MONO_FONT}`, color: C.mint, align: 'center', glow: 16, glowColor: 'rgba(143, 240, 208, 0.5)' });
     label(ctx, 'NIGHT BONUS', W / 2, 420, { font: `600 12px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 3 });
