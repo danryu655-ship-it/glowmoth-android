@@ -182,8 +182,25 @@ function backgroundLayer() {
   return layer;
 }
 
+// ANDROID BUILD ONLY (v1.3.1) — character portraits drawn by the user.
+function loadImage(src) {
+  if (typeof Image === 'undefined') return null;
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+function portraitReady(img) {
+  return img !== null && img !== undefined && img.complete && img.naturalWidth > 0;
+}
+
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
+  const portraits = {
+    luma: loadImage('characters/luma.jpg'),
+    lumi: loadImage('characters/lumi.jpg'),
+    lulu: loadImage('characters/lulu.jpg'),
+  };
   const base = backgroundLayer();
 
   function resize() {
@@ -655,6 +672,50 @@ export function createRenderer(canvas) {
     ctx.restore();
   }
 
+  // ANDROID BUILD ONLY (v1.3.1) — circular character portrait with glow + ring.
+  function drawPortrait(img, x, y, diameter, glowRgba) {
+    const r = diameter / 2;
+    ctx.save();
+    const glow = ctx.createRadialGradient(x, y, r * 0.35, x, y, r * 1.55);
+    glow.addColorStop(0, glowRgba);
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, x - r, y - r, diameter, diameter);
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 213, 79, 0.95)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function wrapLines(value, maxWidth, font) {
+    ctx.save();
+    ctx.font = font;
+    const words = value.split(' ');
+    const lines = [];
+    let line = '';
+    for (const word of words) {
+      const trial = line ? `${line} ${word}` : word;
+      if (ctx.measureText(trial).width <= maxWidth) line = trial;
+      else {
+        lines.push(line);
+        line = word;
+      }
+    }
+    if (line) lines.push(line);
+    ctx.restore();
+    return lines;
+  }
+
   function drawMoth(player, time, options = {}) {
     const { scale = 1, alpha = 1, noFlicker = false } = options;
     const flicker = noFlicker ? 1 : player.invuln > 0 ? 0.45 + 0.55 * Math.abs(Math.sin(time * 18)) : 1;
@@ -1086,7 +1147,11 @@ export function createRenderer(canvas) {
     label(ctx, STRINGS.tagline, W / 2, 300, { font: `italic 500 24px ${TITLE_FONT}`, color: 'rgba(247, 241, 220, 0.9)', align: 'center' });
 
     if (state !== null) {
-      drawMoth({ ...state.player, x: W / 2, y: 418, face: -Math.PI / 2, invuln: 0, flap: time * 10 }, time, { scale: 1.55, noFlicker: true });
+      if (portraitReady(portraits.luma)) {
+        drawPortrait(portraits.luma, W / 2, 405, 180, 'rgba(255, 213, 79, 0.30)');
+      } else {
+        drawMoth({ ...state.player, x: W / 2, y: 418, face: -Math.PI / 2, invuln: 0, flap: time * 10 }, time, { scale: 1.55, noFlicker: true });
+      }
     }
 
     const buttonY = 528;
@@ -1154,6 +1219,32 @@ export function createRenderer(canvas) {
 
   function drawDawnScreen(state, time, demo = false) {
     overlay(0.58);
+    // ANDROID BUILD ONLY (v1.3.1) — on the nights Lumi (3) and Lulu (6) join,
+    // their portrait takes centre stage, like the approved preview.
+    const join = state.night === 3
+      ? { img: portraits.lumi, name: 'LUMI', glow: 'rgba(143, 240, 208, 0.30)' }
+      : state.night === 6
+        ? { img: portraits.lulu, name: 'LULU', glow: 'rgba(142, 203, 255, 0.30)' }
+        : null;
+    if (join !== null && portraitReady(join.img)) {
+      const dawnStory = STRINGS.dawnStory[state.night - 1];
+      label(ctx, STRINGS.dawn, W / 2, 132, { font: `700 54px ${TITLE_FONT}`, color: C.amber, align: 'center', spacing: 6, glow: 26, glowColor: 'rgba(255, 207, 107, 0.5)' });
+      drawPortrait(join.img, W / 2, 268, 150, join.glow);
+      label(ctx, join.name.split('').join(' '), W / 2, 362, { font: `700 18px ${MONO_FONT}`, color: C.amber, align: 'center', spacing: 3 });
+      const storyLines = wrapLines(dawnStory, 920, `italic 500 21px ${TITLE_FONT}`);
+      let storyY = 402;
+      for (const line of storyLines) {
+        label(ctx, line, W / 2, storyY, { font: `italic 500 21px ${TITLE_FONT}`, color: 'rgba(247, 241, 220, 0.9)', align: 'center' });
+        storyY += 30;
+      }
+      label(ctx, `NIGHT ${state.night} COMPLETE`, W / 2, 470, { font: `600 13px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 4 });
+      label(ctx, `+${state.bonus.toLocaleString('en-US')}`, W / 2, 512, { font: `700 44px ${MONO_FONT}`, color: C.mint, align: 'center', glow: 16, glowColor: 'rgba(143, 240, 208, 0.5)' });
+      label(ctx, 'NIGHT BONUS', W / 2, 540, { font: `600 12px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 3 });
+      label(ctx, `SCORE  ${state.score.toLocaleString('en-US')}`, W / 2, 572, { font: `700 18px ${MONO_FONT}`, color: C.cream, align: 'center', spacing: 1.5 });
+      drawButton(demo ? 'THE MOTH FLIES ON…' : STRINGS.next, 632);
+      void time;
+      return;
+    }
     label(ctx, STRINGS.dawn, W / 2, 208, { font: `700 62px ${TITLE_FONT}`, color: C.amber, align: 'center', spacing: 6, glow: 26, glowColor: 'rgba(255, 207, 107, 0.5)' });
     // ANDROID BUILD ONLY — story line for the night just survived. After night 3
     // (endless mode) Lumi and Lulu are free and guard the garden with Luma.
