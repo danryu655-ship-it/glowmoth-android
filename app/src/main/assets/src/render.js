@@ -2,7 +2,7 @@
 // nothing about the rules; it reads a world state and draws it. All art is vector and gradient
 // work on one canvas, with no image or font file anywhere.
 
-import { FIELD, LANTERN, PALETTE as C, RUN, STRINGS } from './config.js';
+import { BOSS, FIELD, LANTERN, PALETTE as C, RUN, STRINGS } from './config.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -522,6 +522,139 @@ export function createRenderer(canvas) {
     ctx.restore();
   }
 
+  // ANDROID BUILD ONLY (v1.3.0) — companions and the boss.
+  function drawCompanion(companion, time) {
+    const isLumi = companion.color === 'lumi';
+    const core = isLumi ? 'rgba(143, 240, 208, 0.95)' : 'rgba(142, 203, 255, 0.95)';
+    const wing = isLumi ? 'rgba(210, 255, 238, 0.85)' : 'rgba(214, 235, 255, 0.85)';
+    const flap = Math.sin(companion.flap);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(companion.x, companion.y, 0, companion.x, companion.y, 26);
+    glow.addColorStop(0, core);
+    glow.addColorStop(0.4, isLumi ? 'rgba(143, 240, 208, 0.28)' : 'rgba(142, 203, 255, 0.28)');
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(companion.x, companion.y, 26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.save();
+    ctx.translate(companion.x, companion.y);
+    ctx.rotate(Math.sin(time * 2 + companion.phase) * 0.2);
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.scale(side, 1);
+      ctx.rotate(-0.3 * flap * side);
+      ctx.fillStyle = wing;
+      ctx.beginPath();
+      ctx.ellipse(5, -3, 7, 3.4, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawBoss(boss, state, time) {
+    // One HP segment per lantern left to light.
+    const hp = Math.max(0, LANTERN.count - state.litCount);
+    ctx.save();
+    ctx.translate(boss.x, boss.y + Math.sin(time * 1.4 + boss.phase) * 3);
+    const aura = ctx.createRadialGradient(0, 0, 10, 0, 0, boss.r * 2.4);
+    aura.addColorStop(0, 'rgba(36, 26, 69, 0.55)');
+    aura.addColorStop(1, 'rgba(36, 26, 69, 0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(0, 0, boss.r * 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Body: a big jagged shadow, like a giant shade.
+    ctx.fillStyle = boss.flash > 0 ? '#3d2b5e' : '#171029';
+    ctx.beginPath();
+    const petals = 9;
+    for (let index = 0; index <= petals; index += 1) {
+      const angle = (index / petals) * Math.PI * 2;
+      const radius = boss.r * (1 + 0.1 * Math.sin(time * 3 + index * 2.3 + boss.phase));
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius * 0.82;
+      if (index === 0) ctx.moveTo(x, y);
+      else {
+        const previous = ((index - 1) / petals) * Math.PI * 2;
+        const cx = Math.cos(previous + 0.35) * radius * 1.4;
+        const cy = Math.sin(previous + 0.35) * radius * 1.4;
+        ctx.quadraticCurveTo(cx, cy, x, y);
+      }
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(169, 139, 255, 0.5)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    // Two glowing red eyes, angry.
+    ctx.fillStyle = 'rgba(255, 90, 90, 0.95)';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(side * 19, -6, 7, 10, side * -0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(23, 16, 41, 0.95)';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(side * 19, -4, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (boss.flash > 0) {
+      ctx.globalAlpha = boss.flash * 0.5;
+      ctx.fillStyle = '#ffd54f';
+      ctx.beginPath();
+      ctx.arc(0, 0, boss.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    // HP bar under the boss.
+    const barW = 110;
+    const barX = -barW / 2;
+    const barY = boss.r + 16;
+    ctx.fillStyle = 'rgba(7, 14, 27, 0.7)';
+    ctx.fillRect(barX - 3, barY - 3, barW + 6, 12);
+    for (let index = 0; index < LANTERN.count; index += 1) {
+      ctx.fillStyle = index < hp ? '#ff5a5a' : 'rgba(169, 183, 201, 0.25)';
+      ctx.fillRect(barX + index * (barW / LANTERN.count) + 1.5, barY, barW / LANTERN.count - 3, 6);
+    }
+    ctx.restore();
+  }
+
+  function drawBeam(state) {
+    if (!state.beam || !state.boss) return;
+    const alpha = Math.max(0, 1 - state.beam.age / 0.5);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = 'rgba(255, 213, 79, 0.9)';
+    ctx.lineWidth = 7;
+    ctx.shadowColor = 'rgba(255, 213, 79, 0.9)';
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.moveTo(state.beam.x, state.beam.y);
+    ctx.lineTo(state.boss.x, state.boss.y);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(state.beam.x, state.beam.y);
+    ctx.lineTo(state.boss.x, state.boss.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawMoth(player, time, options = {}) {
     const { scale = 1, alpha = 1, noFlicker = false } = options;
     const flicker = noFlicker ? 1 : player.invuln > 0 ? 0.45 + 0.55 * Math.abs(Math.sin(time * 18)) : 1;
@@ -692,8 +825,14 @@ export function createRenderer(canvas) {
       if (hazard.kind === 'shade') drawShade(hazard, time);
       else drawDart(hazard, time);
     }
+    if (state.boss) drawBoss(state.boss, state, time);
+    drawBeam(state);
     drawFlare(state);
     if (!hideMoth) drawMoth(state.player, time, { scale: 1.1 });
+    if (!hideMoth) {
+      if (state.lumi && state.lumiPos) drawCompanion(state.lumiPos, time);
+      if (state.lulu && state.luluPos) drawCompanion(state.luluPos, time);
+    }
     drawParticles(state);
     const vignette = ctx.createRadialGradient(W / 2, H / 2, 240, W / 2, H / 2, 760);
     vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
@@ -836,7 +975,8 @@ export function createRenderer(canvas) {
       ctx.restore();
     }
 
-    label(ctx, `NIGHT ${state.night} / ${RUN.nightsToWin}`, W / 2, 40, { font: `700 15px ${MONO_FONT}`, color: C.mint, align: 'center', spacing: 3 });
+    const bossNight = state.night % BOSS.every === 0;
+    label(ctx, bossNight ? `NIGHT ${state.night} — BOSS` : `NIGHT ${state.night} / ${RUN.nightsToWin}`, W / 2, 40, { font: `700 15px ${MONO_FONT}`, color: bossNight ? C.coral : C.mint, align: 'center', spacing: 3 });
     for (let index = 0; index < LANTERN.count; index += 1) {
       const x = W / 2 - (LANTERN.count - 1) * 24 + index * 48;
       const lit = state.lanterns[index]?.lit ?? false;
@@ -876,8 +1016,9 @@ export function createRenderer(canvas) {
     }
     label(ctx, `${state.litCount} / ${LANTERN.count} LIT`, W / 2, 87, { font: `600 10px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 2 });
 
-    for (let index = 0; index < RUN.lives; index += 1) {
-      drawLanternLifeIcon(W - 196 + index * 34, 50, index < state.lives);
+    const maxLives = state.maxLives ?? RUN.lives;
+    for (let index = 0; index < maxLives; index += 1) {
+      drawLanternLifeIcon(W - 196 - (maxLives - RUN.lives) * 34 + index * 34, 50, index < state.lives);
     }
     label(ctx, 'LIVES', W - 196, 84, { font: `600 10px ${MONO_FONT}`, color: C.textDim, spacing: 2 });
     for (let index = 0; index < RUN.maxSparks; index += 1) {
@@ -1020,6 +1161,9 @@ export function createRenderer(canvas) {
       ? STRINGS.dawnStory[state.night - 1]
       : `Malam ${state.night} berlalu. Luma, Lumi, dan Lulu menjaga taman bersama.`;
     label(ctx, dawnStory, W / 2, 260, { font: `italic 500 22px ${TITLE_FONT}`, color: 'rgba(247, 241, 220, 0.9)', align: 'center' });
+    if ((state.night + 1) % BOSS.every === 0) {
+      label(ctx, `MALAM ${state.night + 1} — DARK PEKAT MENANTI`, W / 2, 296, { font: `700 16px ${MONO_FONT}`, color: C.coral, align: 'center', spacing: 3 });
+    }
     label(ctx, `NIGHT ${state.night} COMPLETE`, W / 2, 330, { font: `600 13px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 4 });
     label(ctx, `+${state.bonus.toLocaleString('en-US')}`, W / 2, 390, { font: `700 52px ${MONO_FONT}`, color: C.mint, align: 'center', glow: 16, glowColor: 'rgba(143, 240, 208, 0.5)' });
     label(ctx, 'NIGHT BONUS', W / 2, 420, { font: `600 12px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 3 });

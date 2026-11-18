@@ -181,9 +181,12 @@ function runGame() {
         screen = SCREEN_DAWN;
         autoClock = 0;
         audio.play('clear');
+        const joined = world.state.night === 3 ? ' Lumi bergabung dengan Luma.'
+          : world.state.night === 6 ? ' Lulu bergabung dengan Luma.' : '';
+        const bossDown = world.state.bossBonus > 0 ? ` Dark Pekat kalah! Bonus bos ${world.state.bossBonus}.` : '';
         announce(ENDLESS && world.state.night >= RUN.nightsToWin
-          ? `Three nights lit — you won! The garden glows on. Bonus ${world.state.bonus}. Press Enter for night ${world.state.night + 1}.`
-          : `Night ${world.state.night} survived. Bonus ${world.state.bonus}. Press Enter for the next night.`);
+          ? `Three nights lit — you won! The garden glows on. Bonus ${world.state.bonus}.${joined}${bossDown} Press Enter for night ${world.state.night + 1}.`
+          : `Night ${world.state.night} survived. Bonus ${world.state.bonus}.${joined}${bossDown} Press Enter for the next night.`);
       }
     }
     if (events & EVENT_OVER) finishRun(false);

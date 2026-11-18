@@ -3,10 +3,10 @@
 // a bit set of events for main.js to turn into screens, sound and announcements.
 
 import {
-  DEW, FIELD, FLARE, HAZARD, LANTERN, MOTE, MOTH, RUN,
+  BOSS, COMPANION, DEW, FIELD, FLARE, HAZARD, LANTERN, MOTE, MOTH, RUN,
 } from './config.js';
 import {
-  createMoth, resetLanterns, spawnDart, spawnDew, spawnMote, spawnShade, updateDart, updateMote, updateShade,
+  createBoss, createCompanion, createMoth, resetLanterns, spawnBossDart, spawnDart, spawnDew, spawnMote, spawnShade, updateCompanion, updateDart, updateMote, updateShade,
 } from './entities.js';
 import { burst, dust, flareRing, updateParticles } from './particles.js';
 import { createRandom } from './random.js';
@@ -50,6 +50,16 @@ export function createWorld(seed) {
     bonus: 0,
     lastEvent: 0,
     nightCleared: false,
+    // ANDROID BUILD ONLY (v1.3.0) — companions, max hearts, boss.
+    maxLives: RUN.lives,
+    lumi: false,
+    lulu: false,
+    lumiPos: null,
+    luluPos: null,
+    boss: null,
+    bossTimer: 0,
+    bossBonus: 0,
+    beam: null,
   };
 
   function seedRun() {
@@ -88,6 +98,15 @@ export function createWorld(seed) {
     state.dewTimer = 15;
     state.bonus = 0;
     state.nightCleared = false;
+    state.maxLives = RUN.lives;
+    state.lumi = false;
+    state.lulu = false;
+    state.lumiPos = null;
+    state.luluPos = null;
+    state.boss = null;
+    state.bossTimer = 0;
+    state.bossBonus = 0;
+    state.beam = null;
     for (let index = 0; index < 5; index += 1) spawnMote(state, rand);
   }
 
@@ -112,6 +131,14 @@ export function createWorld(seed) {
     state.comboTimer = 0;
     state.nightCleared = false;
     state.bonus = 0;
+    state.bossBonus = 0;
+    state.beam = null;
+    if (state.night % BOSS.every === 0) {
+      state.boss = createBoss();
+      state.bossTimer = 2.5;
+    } else {
+      state.boss = null;
+    }
     for (let index = 0; index < 6; index += 1) spawnMote(state, rand);
   }
 
@@ -159,6 +186,10 @@ export function createWorld(seed) {
       state.lastEvent |= EVENT_LANTERN;
       state.shake = Math.max(state.shake, 5);
       const spot = LANTERN.positions[state.litCount - 1];
+      if (state.boss) {
+        state.beam = { x: spot.x, y: spot.y - 52, age: 0 };
+        state.boss.flash = 1;
+      }
       state.pops.push({
         x: spot.x, y: spot.y - 58, text: `+${LANTERN.lightScore}`, age: 0, life: 1.1, big: true,
       });
@@ -174,6 +205,39 @@ export function createWorld(seed) {
         state.nightCleared = true;
         state.bonus = 200 * state.night + state.lives * 50;
         state.score += state.bonus;
+        if (state.night === 3 && !state.lumi) {
+          state.lumi = true;
+          state.lumiPos = createCompanion(state.player.x - 40, state.player.y + 20, 'lumi');
+          state.pops.push({
+            x: state.player.x, y: state.player.y - 44, text: 'LUMI BERGABUNG!', age: 0, life: 1.4, big: true,
+          });
+        }
+        if (state.night === 6 && !state.lulu) {
+          state.lulu = true;
+          state.luluPos = createCompanion(state.player.x + 40, state.player.y + 20, 'lulu');
+          state.maxLives = RUN.lives + 1;
+          state.lives = Math.min(state.maxLives, state.lives + 1);
+          state.pops.push({
+            x: state.player.x, y: state.player.y - 44, text: 'LULU BERGABUNG! +1 HATI', age: 0, life: 1.4, big: true,
+          });
+        }
+        if (state.boss) {
+          state.bossBonus = BOSS.bonus * (state.night / BOSS.every);
+          state.score += state.bossBonus;
+          state.pops.push({
+            x: state.boss.x, y: state.boss.y + 40, text: `DARK PEKAT KALAH! +${state.bossBonus}`, age: 0, life: 1.6, big: true,
+          });
+          burst(state, rand, state.boss.x, state.boss.y, {
+            count: 40,
+            colors: ['#ffcf6b', '#fff3c9', '#8ff0d0', '#a98bff'],
+            speed: 320,
+            life: 1.2,
+            size: 4,
+            gravity: 0,
+          });
+          state.boss = null;
+          state.beam = null;
+        }
         state.lastEvent |= EVENT_NIGHT;
       }
     }
@@ -286,6 +350,38 @@ export function createWorld(seed) {
     }
 
     steer(dt, direction);
+
+    // ANDROID BUILD ONLY (v1.3.0) — companions trail behind the moth; the
+    // boss drifts across the sky and fires darts at the moth.
+    if (state.lumi && state.lumiPos) {
+      const behind = state.player.face + Math.PI;
+      updateCompanion(state.lumiPos,
+        state.player.x + Math.cos(behind + 0.45) * COMPANION.trail,
+        state.player.y + Math.sin(behind + 0.45) * COMPANION.trail, dt);
+    }
+    if (state.lulu && state.luluPos) {
+      const behind = state.player.face + Math.PI;
+      updateCompanion(state.luluPos,
+        state.player.x + Math.cos(behind - 0.45) * COMPANION.trail,
+        state.player.y + Math.sin(behind - 0.45) * COMPANION.trail, dt);
+    }
+    if (state.beam) {
+      state.beam.age += dt;
+      if (state.beam.age > 0.5) state.beam = null;
+    }
+    if (state.boss) {
+      const boss = state.boss;
+      boss.phase += dt;
+      boss.x = FIELD.width / 2 + Math.sin(boss.phase * 0.35) * 300;
+      boss.y = 168 + Math.sin(boss.phase * 0.8) * 14;
+      boss.flash = Math.max(0, boss.flash - dt * 2);
+      state.bossTimer -= dt;
+      if (state.bossTimer <= 0 && state.hazards.length < HAZARD.max) {
+        spawnBossDart(state, boss, rand);
+        state.bossTimer = BOSS.attackGap + rand.range(0, 1);
+      }
+    }
+
     for (const lantern of state.lanterns) {
       lantern.pulse = Math.max(0, lantern.pulse - dt * 1.4);
       lantern.glow += ((lantern.lit ? 1 : 0) - lantern.glow) * Math.min(1, dt * 3);
@@ -305,7 +401,7 @@ export function createWorld(seed) {
       state.moteTimer = Math.max(MOTE.minInterval, MOTE.spawnInterval - state.night * 0.06) + rand.range(0, 0.22);
     }
 
-    if (state.dew === null && state.lives < RUN.lives) {
+    if (state.dew === null && state.lives < state.maxLives) {
       state.dewTimer -= dt;
       if (state.dewTimer <= 0) {
         spawnDew(state, rand);
@@ -319,12 +415,23 @@ export function createWorld(seed) {
       else if (rand.next() < 0.46) spawnDart(state, rand);
       else spawnShade(state, rand);
       if (state.night >= 3 && rand.next() < 0.3 && state.hazards.length < HAZARD.max) spawnShade(state, rand);
-      state.hazardTimer = Math.max(HAZARD.minGap, HAZARD.spawnGap - (state.night - 1) * HAZARD.gapPerNight) + rand.range(0, 0.5);
+      const gap = Math.max(HAZARD.minGap, HAZARD.spawnGap - (state.night - 1) * HAZARD.gapPerNight) + rand.range(0, 0.5);
+      state.hazardTimer = state.boss ? gap * BOSS.spawnBoost : gap;
     }
 
     for (let index = state.motes.length - 1; index >= 0; index -= 1) {
       const mote = state.motes[index];
       updateMote(mote, dt);
+      // Lumi's light pulls nearby motes toward the moth.
+      if (state.lumi) {
+        const dx = player.x - mote.x;
+        const dy = player.y - mote.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance > 1 && distance < COMPANION.magnetRadius) {
+          mote.x += (dx / distance) * COMPANION.magnetPull * dt;
+          mote.y += (dy / distance) * COMPANION.magnetPull * dt;
+        }
+      }
       if (mote.age >= mote.life) {
         state.motes.splice(index, 1);
         continue;
@@ -340,7 +447,7 @@ export function createWorld(seed) {
       if (state.dew.age >= state.dew.life) {
         state.dew = null;
       } else if (Math.hypot(state.dew.x - player.x, state.dew.y - player.y) < state.dew.r + MOTH.radius + 4) {
-        state.lives = Math.min(RUN.lives, state.lives + 1);
+        state.lives = Math.min(state.maxLives, state.lives + 1);
         state.score += 50;
         state.pops.push({
           x: state.dew.x, y: state.dew.y - 26, text: '+50 LIFE', age: 0, life: 1.05, big: true,
@@ -371,6 +478,10 @@ export function createWorld(seed) {
         hitBy(hazard);
         if (hazard.kind === 'dart') hazard.dead = true;
       }
+    }
+
+    if (state.boss && Math.hypot(state.boss.x - player.x, state.boss.y - player.y) < state.boss.r + MOTH.radius - 6) {
+      hitBy(state.boss);
     }
 
     if (state.flare !== null) {
