@@ -3,7 +3,7 @@
 // and victory. ?shot=title|skills|play|dawn|victory|over stages a screenshot frame instead of starting
 // the loop; ?seed=N makes a run's patterns repeatable.
 
-import { BADGES_KEY, BEST_KEY, BOSS, BOSS_KINDS, CUTSCENE, CUTSCENES, EPILOGUE_KEY, PROLOGUE_KEY, RUN, STEP, STRINGS, SKILL_BUTTON, SKIN_BUTTON, SKIN_CARDS, SKIN_KEY, BACK_BUTTON, bossKind } from './config.js';
+import { BADGES_KEY, BEST_KEY, BOSS, BOSS_KINDS, CUTSCENE, CUTSCENES, EPILOGUE_KEY, LANTERN, PROLOGUE_KEY, RUN, STEP, STRINGS, SKILL_BUTTON, SKIN_BUTTON, SKIN_CARDS, SKIN_KEY, BACK_BUTTON, TIPS, bossKind } from './config.js';
 import { autopilotDirection, autopilotFlare } from './autopilot.js';
 import { createAudio } from './audio.js';
 import { createInput } from './input.js';
@@ -13,6 +13,7 @@ import {
 import {
   createWorld, EVENT_DEW, EVENT_HIT, EVENT_LANTERN, EVENT_NIGHT, EVENT_OVER, EVENT_SHIELD, EVENT_SPARK,
 } from './world.js';
+import { createTips } from './tips.js';
 import { stageShot } from './shots.js';
 
 const MAX_FRAME = 0.25;
@@ -88,7 +89,7 @@ function runShot(name) {
   if (Number.isFinite(tParam)) world.state.time = 12.4 + tParam;
   let painted = 0;
   function paint() {
-    renderer.draw(world.state, scene.screen, scene.best, { cutscene: scene.cutscene, prologuePage: scene.prologuePage, epiloguePage: scene.epiloguePage, epilogueCard: scene.epilogueCard ?? false, badges: readBadges(), skin: scene.skin ?? readSkin() });
+    renderer.draw(world.state, scene.screen, scene.best, { cutscene: scene.cutscene, prologuePage: scene.prologuePage, epiloguePage: scene.epiloguePage, epilogueCard: scene.epilogueCard ?? false, badges: readBadges(), skin: scene.skin ?? readSkin(), tip: scene.tip ?? null, tipAlpha: 1 });
     painted += 1;
     if (painted < 2) requestAnimationFrame(paint);
     else {
@@ -104,6 +105,10 @@ function runGame() {
   let screen = SCREEN_TITLE;
   let cutscene = null;
   let prologuePage = 0;
+  // ANDROID BUILD ONLY (v1.8.0) — in-game tips, in-memory only: they show
+  // once per page load (one open game) and never again on replay while
+  // the game stays open.
+  const tips = createTips(TIPS);
   let epiloguePage = 0;
   let epilogueCard = false;
   let skin = readSkin();
@@ -163,6 +168,10 @@ function runGame() {
     announce(ENDLESS
   ? `Night 1. ${RUN.lives} lives. Collect golden motes to light four lanterns — the nights go on as long as you can fly.`
   : `Night 1 of ${RUN.nightsToWin}. ${RUN.lives} lives. Collect golden motes to light four lanterns.`);
+    // ANDROID BUILD ONLY (v1.8.0) — the first tip: how to collect light.
+    // Shown on the first run after the game is opened; the in-memory
+    // flag in tips.js keeps it from ever repeating while the game stays open.
+    if (!demo && world.state.night === 1) tips.show('collect', ambientClock);
   }
 
   function startRun() {
@@ -177,8 +186,15 @@ function runGame() {
       audio.play('start');
       announce('Padang rumput Luminaria. Tekan Enter untuk memulai.');
     } else {
-      startPlay();
+      enterPlay();
     }
+  }
+
+  // ANDROID BUILD ONLY (v1.8.0) — the in-game tips replaced the old
+  // full-screen tutorial: the first run starts at once, and the tips
+  // appear while playing, at the moment each one matters.
+  function enterPlay() {
+    startPlay();
   }
 
   function finishRun(victory) {
@@ -272,7 +288,7 @@ function runGame() {
           prologuePage += 1;
         } else {
           markStorySeen(PROLOGUE_KEY);
-          startPlay();
+          enterPlay();
         }
       }
       return;
@@ -339,7 +355,11 @@ function runGame() {
     if (screen === SCREEN_PLAY) {
       if (input.consume('flare') || pointer) {
         audio.unlock();
-        if (world.flare()) audio.play('flare');
+        if (world.flare()) {
+          audio.play('flare');
+          // ANDROID BUILD ONLY (v1.8.0) — tip the first time Flare is used.
+          tips.show('spark', ambientClock);
+        }
       }
     }
   }
@@ -400,6 +420,8 @@ function runGame() {
     if (events & EVENT_HIT) {
       audio.play('hit');
       announce(world.state.lives === 1 ? 'Hit. One life left.' : `Hit. ${world.state.lives} lives left.`);
+      // ANDROID BUILD ONLY (v1.8.0) — tip the first time the moth is hit.
+      if (!demo) tips.show('lives', ambientClock);
     }
     if (events & EVENT_SHIELD) {
       if (world.state.shield) {
@@ -410,7 +432,12 @@ function runGame() {
         announce('Perisai pecah!');
       }
     }
-    if (events & EVENT_LANTERN) audio.play('lantern');
+    if (events & EVENT_LANTERN) {
+      audio.play('lantern');
+      // ANDROID BUILD ONLY (v1.8.0) — tip when a lantern lights (not the
+      // last one: the night ends right after it).
+      if (!demo && world.state.litCount < LANTERN.count) tips.show('lantern', ambientClock);
+    }
     if (events & EVENT_DEW) {
       audio.play('dew');
       announce('Dew drop. One life restored.');
@@ -483,6 +510,16 @@ function runGame() {
         if (events !== 0) handleEvents(events);
         if (screen !== SCREEN_PLAY) accumulator = 0;
       }
+      // ANDROID BUILD ONLY (v1.8.0) — in-game tips, checked every frame
+      // while playing (never in the demo): a shade closing in teaches
+      // Flare, a spawned dew drop teaches the life restore.
+      if (!demo) {
+        if (!tips.hasShown('flare') && world.state.hazards.some((h) => h.kind === 'shade'
+          && Math.hypot(h.x - world.state.player.x, h.y - world.state.player.y) < 280)) {
+          tips.show('flare', ambientClock);
+        }
+        if (world.state.dew && !tips.hasShown('dew')) tips.show('dew', ambientClock);
+      }
     } else {
       accumulator = 0;
     }
@@ -510,7 +547,8 @@ function runGame() {
       if (epilogueCard) epilogueCard = false;
       else enterDawn();
     }
-    renderer.draw(world.state, screen, best, { timeOffset: screen === SCREEN_CUTSCENE || screen === SCREEN_DAWN || screen === SCREEN_EPILOGUE || screen === SCREEN_OVER || screen === SCREEN_PROLOGUE || screen === SCREEN_VICTORY ? ambientClock : 0, demo, cutscene, prologuePage, epiloguePage, epilogueCard, badges, skin });
+    const tip = tips.active(ambientClock);
+    renderer.draw(world.state, screen, best, { timeOffset: screen === SCREEN_CUTSCENE || screen === SCREEN_DAWN || screen === SCREEN_EPILOGUE || screen === SCREEN_OVER || screen === SCREEN_PROLOGUE || screen === SCREEN_VICTORY ? ambientClock : 0, demo, cutscene, prologuePage, epiloguePage, epilogueCard, badges, skin, tip: tip?.text ?? null, tipAlpha: tip?.alpha ?? 0 });
     input.endFrame();
   }
 

@@ -1573,6 +1573,10 @@ export function createRenderer(canvas) {
     void time;
   }
 
+  // ANDROID BUILD ONLY (v1.7.0) — the how-to-play tutorial, shown once
+  // before the first run and replayable from the title. Display only:
+  // Enter, Esc or a tap on the button returns (to night 1 on a first run,
+  // to the title otherwise).
   // ANDROID BUILD ONLY (v1.6.0) — pick the moth's skin. Tap a card to
   // choose it (saved at once); KEMBALI returns to the title. The in-flight
   // moth is drawn procedurally — the skin only swaps its colours.
@@ -2071,6 +2075,36 @@ export function createRenderer(canvas) {
     void state;
   }
 
+  // ANDROID BUILD ONLY (v1.8.0) — one in-game tip at a time: a pill under
+  // the HUD bar (the HUD ends at y 98), centred, fading out in its last
+  // 0.6 s. The game never pauses for a tip.
+  function drawTip(text, alpha) {
+    const font = `500 16px ${BODY_FONT}`;
+    const lines = wrapLines(text, 860, font);
+    const lineH = 22;
+    let widest = 0;
+    ctx.save();
+    ctx.font = font;
+    for (const line of lines) widest = Math.max(widest, ctx.measureText(line).width);
+    ctx.restore();
+    const w = Math.min(920, widest + 56);
+    const h = lines.length * lineH + 24;
+    const x = W / 2 - w / 2;
+    const y = 108;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    roundedRect(ctx, x, y, w, h, h / 2);
+    ctx.fillStyle = 'rgba(5, 8, 14, 0.78)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 207, 107, 0.55)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    lines.forEach((line, index) => {
+      label(ctx, line, W / 2, y + 26 + index * lineH, { font, color: C.cream, align: 'center' });
+    });
+    ctx.restore();
+  }
+
   function draw(state, screen, best, extra = {}) {
     begin();
     skin = extra.skin ?? 'luma';
@@ -2096,6 +2130,7 @@ export function createRenderer(canvas) {
       drawEndScreen(state, screen, best, time);
     } else {
       drawHud(state, time);
+      if (screen === SCREEN_PLAY && extra.tip) drawTip(extra.tip, extra.tipAlpha ?? 1);
       if (screen === SCREEN_PAUSED) drawPaused(state);
     }
     if (state.whiteFlash > 0) {

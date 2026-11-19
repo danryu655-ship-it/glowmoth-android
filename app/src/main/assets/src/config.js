@@ -97,6 +97,21 @@ export const BACK_BUTTON = { x: 550, y: 662, w: 180, h: 38 };
 // default skin uses the Luma portrait. The moth in flight is still drawn
 // procedurally — the skin only swaps its colours (see SKIN_PALETTES).
 export const SKIN_BUTTON = { x: 976, y: 24, w: 132, h: 40 };
+
+// ANDROID BUILD ONLY (v1.8.0) — in-game tips ("Tips Sambil Main"): short
+// hints that appear while playing, at the moment each one matters, then
+// fade away. They replace the v1.7.0/v1.7.1 Cara Main screen, which the
+// player never read before playing. The numbers are verified against the
+// code: 6 motes per lantern (LANTERN.motesEach), 3 lives (RUN.lives),
+// Flare costs 1 Spark, refill 1 per 5 motes, max 2.
+export const TIPS = [
+  { id: 'collect', text: 'Terbang menyentuh kunang emas untuk mengambil cahayanya — tiap lentera butuh 6 kunang.' },
+  { id: 'flare', text: 'Shade mendekat! Ketuk layar / Spasi untuk Flare.' },
+  { id: 'spark', text: 'Flare memakai 1 Spark — isi ulang 1 tiap 5 motes (maks 2).' },
+  { id: 'lantern', text: 'Lentera menyala! Kumpulkan kunang untuk lentera berikutnya.' },
+  { id: 'lives', text: 'Kena serang: −1 hati. Kamu punya 3 hati — cari embun untuk memulihkan 1 hati.' },
+  { id: 'dew', text: 'Embun muncul! Sentuh untuk +1 hati & +50 poin.' },
+];
 export const SKIN_CARDS = [
   { id: 'luma', x: 150, y: 150, w: 340, h: 440 },
   { id: 'golden', x: 470, y: 150, w: 340, h: 440 },
