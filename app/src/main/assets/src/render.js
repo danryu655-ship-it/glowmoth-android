@@ -581,9 +581,18 @@ export function createRenderer(canvas) {
     // One HP segment per lantern left to light.
     const hp = Math.max(0, LANTERN.count - state.litCount);
     ctx.save();
-    ctx.translate(boss.x, boss.y + Math.sin(time * 1.4 + boss.phase) * 3);
+    ctx.translate(boss.x, boss.y + Math.sin(time * 1.4 + boss.phase) * 18);
+    // ANDROID BUILD ONLY (v1.6.2) — the boss portrait was frozen: only a
+    // 3px bob moved, so it read as stiff. It now sways and its aura
+    // breathes; the HP bar below stays level (drawn outside the sway).
+    ctx.save();
+    ctx.rotate(Math.sin(time * 0.9 + boss.phase) * 0.12);
+    // ANDROID BUILD ONLY (v1.6.2) — round 2: a scale pulse reads even on a
+    // circle (rotation alone is invisible on a round portrait).
+    const breathe = 1 + 0.04 * Math.sin(time * 2 + boss.phase);
+    ctx.scale(breathe, breathe);
     const aura = ctx.createRadialGradient(0, 0, 10, 0, 0, boss.r * 2.4);
-    aura.addColorStop(0, 'rgba(36, 26, 69, 0.55)');
+    aura.addColorStop(0, `rgba(36, 26, 69, ${0.55 + 0.25 * Math.sin(time * 2 + boss.phase)})`);
     aura.addColorStop(1, 'rgba(36, 26, 69, 0)');
     ctx.fillStyle = aura;
     ctx.beginPath();
@@ -606,6 +615,19 @@ export function createRenderer(canvas) {
         ctx.fill();
         ctx.globalAlpha = 1;
       }
+    // ANDROID BUILD ONLY (v1.6.2) — round 4: the drop shadow is a dark
+    // band hugging the ring's outer edge, drawn AFTER the portrait so
+    // nothing covers it (the earlier disc, drawn before the portrait,
+    // faded to ~0.1 alpha where it peeked past the glow — invisible).
+    const bossShadow = ctx.createRadialGradient(0, 12, 0, 0, 12, 160);
+    bossShadow.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    bossShadow.addColorStop(0.68, 'rgba(0, 0, 0, 0)');
+    bossShadow.addColorStop(0.75, 'rgba(0, 0, 0, 0.5)');
+    bossShadow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = bossShadow;
+    ctx.beginPath();
+    ctx.arc(0, 12, 160, 0, Math.PI * 2);
+    ctx.fill();
     } else {
       // Body: a big jagged shadow, like a giant shade.
       ctx.fillStyle = boss.flash > 0 ? '#3d2b5e' : '#171029';
@@ -651,6 +673,7 @@ export function createRenderer(canvas) {
         ctx.globalAlpha = 1;
       }
     }
+    ctx.restore();
     // HP bar under the boss (below the portrait when it is shown).
     const barW = 110;
     const barX = -barW / 2;
@@ -822,7 +845,13 @@ export function createRenderer(canvas) {
   // until the image loads.
   function drawScorpion(hazard, time) {
     ctx.save();
-    ctx.translate(hazard.x, hazard.y + Math.sin(time * 2 + hazard.phase) * 2);
+    // ANDROID BUILD ONLY (v1.6.2) — the scorpion only bobbed 2px and read
+    // as stiff. It now bobs 5px, leans into its walk, and stretches
+    // (squash & stretch) while lunging.
+    const lunging = hazard.mode === 'lunge';
+    ctx.translate(hazard.x, hazard.y + Math.sin(time * 2 + hazard.phase) * 10);
+    ctx.rotate(Math.sin(time * 2 + hazard.phase) * 0.15);
+    if (lunging) ctx.scale(1.3, 0.7);
     const img = portraits.enemyScorpion;
     if (portraitReady(img)) {
       drawPortrait(img, 0, 0, 64, 'rgba(192, 132, 252, 0.30)', 'rgba(216, 180, 254, 0.95)');
@@ -852,21 +881,34 @@ export function createRenderer(canvas) {
       ctx.strokeStyle = 'rgba(192, 132, 252, 0.9)';
       ctx.lineWidth = 2;
       ctx.beginPath();
+      const tailWag = Math.sin(time * 5 + hazard.phase) * 4;
       ctx.moveTo(6, 2);
-      ctx.quadraticCurveTo(14, -8, 10, -16);
+      ctx.quadraticCurveTo(14, -8, 10 + tailWag, -16);
       ctx.stroke();
       ctx.fillStyle = '#f472b6';
       ctx.beginPath();
-      ctx.arc(10, -17, 2.5, 0, Math.PI * 2);
+      ctx.arc(10 + tailWag, -17, 2.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'rgba(192, 132, 252, 0.9)';
       ctx.beginPath();
+      const wiggle = Math.sin(time * 6 + hazard.phase) * 3;
       ctx.moveTo(-8, 4);
-      ctx.lineTo(-15, -2);
+      ctx.lineTo(-15, -2 + wiggle);
       ctx.moveTo(8, 4);
-      ctx.lineTo(15, -2);
+      ctx.lineTo(15, -2 - wiggle);
       ctx.stroke();
     }
+    // ANDROID BUILD ONLY (v1.6.2) — round 4: dark band hugging the ring's
+    // outer edge, drawn AFTER the portrait so nothing covers it.
+    const scorShadow = ctx.createRadialGradient(0, 6, 0, 0, 6, 48);
+    scorShadow.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    scorShadow.addColorStop(0.66, 'rgba(0, 0, 0, 0)');
+    scorShadow.addColorStop(0.75, 'rgba(0, 0, 0, 0.5)');
+    scorShadow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = scorShadow;
+    ctx.beginPath();
+    ctx.arc(0, 6, 48, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
