@@ -1,14 +1,14 @@
 // Boot and the one loop. The world advances in fixed 1/60 s steps, the renderer paints what is
 // there, and one small state machine moves between title, play, paused, cutscene, dawn, game over
-// and victory. ?shot=title|skills|play|dawn|victory|over stages a screenshot frame instead of starting
+// and victory. ?shot=title|skills|modeselect|play|dawn|victory|over stages a screenshot frame instead of starting
 // the loop; ?seed=N makes a run's patterns repeatable.
 
-import { BADGES_KEY, BEST_KEY, BOSS, BOSS_KINDS, CUTSCENE, CUTSCENES, EPILOGUE_KEY, LANTERN, PROLOGUE_KEY, RUN, STEP, STRINGS, SKILL_BUTTON, SKIN_BUTTON, SKIN_CARDS, SKIN_KEY, BACK_BUTTON, TIPS, bossKind } from './config.js';
+import { BADGES_KEY, BEST_KEY, BOSS, BOSS_KINDS, CHARACTER_CARDS, CUTSCENE, CUTSCENES, EPILOGUE_KEY, LANTERN, MODE_CARDS, PROLOGUE_KEY, RUN, SELECT_KEY, STEP, STRINGS, SKILL_BUTTON, SKIN_BUTTON, SKIN_CARDS, SKIN_KEY, BACK_BUTTON, START_BUTTON, TIPS, bossKind } from './config.js';
 import { autopilotDirection, autopilotFlare } from './autopilot.js';
 import { createAudio } from './audio.js';
 import { createInput } from './input.js';
 import {
-  createRenderer, SCREEN_CUTSCENE, SCREEN_DAWN, SCREEN_EPILOGUE, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_PROLOGUE, SCREEN_SKILLS, SCREEN_SKINS, SCREEN_TITLE, SCREEN_VICTORY,
+  createRenderer, SCREEN_CHARACTER, SCREEN_CUTSCENE, SCREEN_DAWN, SCREEN_EPILOGUE, SCREEN_MODE, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_PROLOGUE, SCREEN_SKILLS, SCREEN_SKINS, SCREEN_TITLE, SCREEN_VICTORY,
 } from './render.js';
 import {
   createWorld, EVENT_DEW, EVENT_HIT, EVENT_LANTERN, EVENT_NIGHT, EVENT_OVER, EVENT_SHIELD, EVENT_SPARK,
@@ -78,6 +78,27 @@ function saveSkin(value) {
   }
 }
 
+// ANDROID BUILD ONLY (v1.9.0) — the last mode + character pick, remembered
+// like the skin so the player does not re-pick every run.
+function readSelection() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(SELECT_KEY) ?? '{}') || {};
+    const mode = saved.mode === 'endless' ? 'endless' : 'quest';
+    const character = ['luma', 'lumi', 'lulu', 'koko', 'zephyr'].includes(saved.character) ? saved.character : 'luma';
+    return { mode, character };
+  } catch {
+    return { mode: 'quest', character: 'luma' };
+  }
+}
+
+function saveSelection(value) {
+  try {
+    window.localStorage.setItem(SELECT_KEY, JSON.stringify(value));
+  } catch {
+    // Private windows keep the pick for this visit only.
+  }
+}
+
 function runShot(name) {
   const best = readBest();
   const scene = stageShot(name, world, best);
@@ -89,7 +110,7 @@ function runShot(name) {
   if (Number.isFinite(tParam)) world.state.time = 12.4 + tParam;
   let painted = 0;
   function paint() {
-    renderer.draw(world.state, scene.screen, scene.best, { cutscene: scene.cutscene, prologuePage: scene.prologuePage, epiloguePage: scene.epiloguePage, epilogueCard: scene.epilogueCard ?? false, badges: readBadges(), skin: scene.skin ?? readSkin(), tip: scene.tip ?? null, tipAlpha: 1 });
+    renderer.draw(world.state, scene.screen, scene.best, { cutscene: scene.cutscene, prologuePage: scene.prologuePage, epiloguePage: scene.epiloguePage, epilogueCard: scene.epilogueCard ?? false, badges: readBadges(), skin: scene.skin ?? readSkin(), selection: scene.selection ?? null, tip: scene.tip ?? null, tipAlpha: 1 });
     painted += 1;
     if (painted < 2) requestAnimationFrame(paint);
     else {
@@ -112,6 +133,7 @@ function runGame() {
   let epiloguePage = 0;
   let epilogueCard = false;
   let skin = readSkin();
+  let selection = readSelection();
   let best = readBest();
   let badges = readBadges();
   let accumulator = 0;
@@ -176,11 +198,17 @@ function runGame() {
 
   function startRun() {
     world.reset();
+    // ANDROID BUILD ONLY (v1.9.0) — the selection drives the run: the
+    // chosen moth's passive is live from night 1, and Endless records
+    // its mode so the story beats are skipped.
+    world.applyCharacter(selection.character);
+    world.state.mode = selection.mode;
     accumulator = 0;
     audio.unlock();
     // ANDROID BUILD ONLY (v1.4.5) — the prologue plays once, before the
-    // first run. The demo skips it.
-    if (!demo && !storySeen(PROLOGUE_KEY)) {
+    // first run. The demo skips it. v1.9.0: Endless skips the prologue too —
+    // it jumps straight into the night.
+    if (!demo && selection.mode === 'quest' && !storySeen(PROLOGUE_KEY)) {
       prologuePage = 0;
       screen = SCREEN_PROLOGUE;
       audio.play('start');
@@ -239,7 +267,12 @@ function runGame() {
         announce('Pilih Skin. Ketuk kartu untuk memilih, Enter untuk kembali.');
         return;
       }
-      if (confirm || pointer) startRun();
+      // ANDROID BUILD ONLY (v1.9.0) — a tap or Enter on the title opens
+      // the mode picker instead of starting the run at once.
+      if (confirm || pointer) {
+        screen = SCREEN_MODE;
+        announce('Pilih mode dulu — Quest atau Tanpa Akhir.');
+      }
       return;
     }
     // ANDROID BUILD ONLY (v1.6.0) — the skin picker: tap a card to choose
@@ -277,6 +310,95 @@ function runGame() {
       if (confirm || pause || (pointer && onBackButton)) {
         screen = SCREEN_TITLE;
         announce('Glowmoth: Lantern Night. Press Enter or click to fly.');
+      }
+      return;
+    }
+    // ANDROID BUILD ONLY (v1.9.0 round 2) — mode picker: a tap on a
+    // card acts at once — QUEST starts the run as Luma, TANPA AKHIR opens
+    // the character picker. Enter uses the remembered mode; Esc returns
+    // to the title.
+    if (screen === SCREEN_MODE) {
+      const pos = input.pointerPos();
+      if (pointer) {
+        for (const card of MODE_CARDS) {
+          if (pos.x >= card.x && pos.x <= card.x + card.w && pos.y >= card.y && pos.y <= card.y + card.h) {
+            if (card.id === 'quest') {
+              selection = { mode: 'quest', character: 'luma' };
+              saveSelection(selection);
+              startRun();
+            } else {
+              selection = { ...selection, mode: 'endless' };
+              saveSelection(selection);
+              screen = SCREEN_CHARACTER;
+              announce('Pilih karakter untuk mode Tanpa Akhir. Enter untuk mulai main.');
+            }
+            return;
+          }
+        }
+        const onBackButton = pos.x >= BACK_BUTTON.x && pos.x <= BACK_BUTTON.x + BACK_BUTTON.w
+          && pos.y >= BACK_BUTTON.y && pos.y <= BACK_BUTTON.y + BACK_BUTTON.h;
+        if (onBackButton) {
+          screen = SCREEN_TITLE;
+          announce('Glowmoth: Lantern Night. Press Enter or click to fly.');
+          return;
+        }
+      }
+      if (confirm) {
+        if (selection.mode === 'endless') {
+          screen = SCREEN_CHARACTER;
+          announce('Pilih karakter untuk mode Tanpa Akhir. Enter untuk mulai main.');
+        } else {
+          selection = { mode: 'quest', character: 'luma' };
+          saveSelection(selection);
+          startRun();
+        }
+        return;
+      }
+      if (pause) {
+        screen = SCREEN_TITLE;
+        announce('Glowmoth: Lantern Night. Press Enter or click to fly.');
+      }
+      return;
+    }
+    // ANDROID BUILD ONLY (v1.9.0 round 2) — Endless character picker: tap
+    // a card to choose it (saved at once); MULAI MAIN or Enter starts the
+    // run, KEMBALI or Esc returns to the mode picker.
+    if (screen === SCREEN_CHARACTER) {
+      const pos = input.pointerPos();
+      if (pointer) {
+        let picked = false;
+        for (const card of CHARACTER_CARDS) {
+          if (pos.x >= card.x && pos.x <= card.x + card.w && pos.y >= card.y && pos.y <= card.y + card.h) {
+            selection = { ...selection, character: card.id };
+            saveSelection(selection);
+            announce(`Karakter ${card.id} dipilih.`);
+            picked = true;
+            break;
+          }
+        }
+        if (!picked) {
+          const onStartButton = pos.x >= START_BUTTON.x && pos.x <= START_BUTTON.x + START_BUTTON.w
+            && pos.y >= START_BUTTON.y && pos.y <= START_BUTTON.y + START_BUTTON.h;
+          if (onStartButton) {
+            startRun();
+            return;
+          }
+          const onBackButton = pos.x >= BACK_BUTTON.x && pos.x <= BACK_BUTTON.x + BACK_BUTTON.w
+            && pos.y >= BACK_BUTTON.y && pos.y <= BACK_BUTTON.y + BACK_BUTTON.h;
+          if (onBackButton) {
+            screen = SCREEN_MODE;
+            announce('Pilih mode dulu — Quest atau Tanpa Akhir.');
+            return;
+          }
+        }
+      }
+      if (confirm) {
+        startRun();
+        return;
+      }
+      if (pause) {
+        screen = SCREEN_MODE;
+        announce('Pilih mode dulu — Quest atau Tanpa Akhir.');
       }
       return;
     }
@@ -322,7 +444,7 @@ function runGame() {
         // ANDROID BUILD ONLY (v1.4.4) — a boss night opens with its intro
         // cutscene instead of jumping straight into the fight. v1.6.0: only
         // Dark Pekat gets the intro — the Spider Queen has no dialogue.
-        if (ENDLESS && world.state.night % BOSS.every === 0 && bossKind(world.state.night) === 'pekat') {
+        if (ENDLESS && selection.mode === 'quest' && world.state.night % BOSS.every === 0 && bossKind(world.state.night) === 'pekat') {
           cutscene = { night: world.state.night, boss: true, beat: 0, beatTime: 0 };
           screen = SCREEN_CUTSCENE;
           audio.play('clear');
@@ -376,10 +498,10 @@ function runGame() {
     if (world.state.night === 3) awardBadge('lumi');
     if (world.state.night === 6) awardBadge('lulu');
     if (world.state.bossBonus > 0) awardBadge(world.state.lastBossKind === 'ratu' ? 'ratu' : 'pekat');
-    const joined = world.state.night === 3 ? ' Lumi bergabung dengan Luma.'
-      : world.state.night === 6 ? ' Lulu bergabung dengan Luma.'
-      : world.state.night === 9 ? ' Koko bergabung dengan Luma.'
-      : world.state.night === 12 ? ' Zephyr bergabung dengan Luma.' : '';
+    const joined = world.state.night === 3 && selection.character !== 'lumi' ? ' Lumi bergabung dengan Luma.'
+      : world.state.night === 6 && selection.character !== 'lulu' ? ' Lulu bergabung dengan Luma.'
+      : world.state.night === 9 && selection.character !== 'koko' ? ' Koko bergabung dengan Luma.'
+      : world.state.night === 12 && selection.character !== 'zephyr' ? ' Zephyr bergabung dengan Luma.' : '';
     const bossDown = world.state.bossBonus > 0 ? ` ${BOSS_KINDS[world.state.lastBossKind ?? 'pekat'].name} kalah! Bonus bos ${world.state.bossBonus}.` : '';
     announce(ENDLESS && world.state.night >= RUN.nightsToWin
       ? `Three nights lit — you won! The garden glows on. Bonus ${world.state.bonus}.${joined}${bossDown} Press Enter for night ${world.state.night + 1}.`
@@ -447,7 +569,7 @@ function runGame() {
       if (!ENDLESS && world.state.night >= RUN.nightsToWin) finishRun(true);
       // ANDROID BUILD ONLY (v1.4.4) — after night 3 (Lumi freed) and night 6
       // (Lulu freed) the dawn cutscene plays before the dawn card.
-      else if (ENDLESS && CUTSCENES[world.state.night]) {
+      else if (ENDLESS && selection.mode === 'quest' && CUTSCENES[world.state.night]) {
         // ANDROID BUILD ONLY (v1.6.0) — the illustration card comes first.
         const cardForNight = { 3: 'cardNight3', 6: 'cardNight6' };
         cutscene = { night: world.state.night, beat: 0, beatTime: 0, card: cardForNight[world.state.night] ?? null, cardDone: false };
@@ -458,7 +580,7 @@ function runGame() {
       // ANDROID BUILD ONLY (v1.4.5) — the first boss defeat ends in the
       // epilogue, once, before the dawn card. v1.6.0: the epilogue is Dark
       // Pekat's redemption; it only plays when he falls, not the Queen.
-      } else if (world.state.bossBonus > 0 && world.state.lastBossKind === 'pekat' && !storySeen(EPILOGUE_KEY)) {
+      } else if (selection.mode === 'quest' && world.state.bossBonus > 0 && world.state.lastBossKind === 'pekat' && !storySeen(EPILOGUE_KEY)) {
         markStorySeen(EPILOGUE_KEY);
         epiloguePage = 0;
         epilogueCard = true;
@@ -529,7 +651,7 @@ function runGame() {
       if (!ENDLESS && world.state.night >= RUN.nightsToWin) finishRun(true);
       else {
         world.nextNight();
-        if (ENDLESS && world.state.night % BOSS.every === 0 && bossKind(world.state.night) === 'pekat') {
+        if (ENDLESS && selection.mode === 'quest' && world.state.night % BOSS.every === 0 && bossKind(world.state.night) === 'pekat') {
           cutscene = { night: world.state.night, boss: true, beat: 0, beatTime: 0 };
           screen = SCREEN_CUTSCENE;
           audio.play('clear');
@@ -548,7 +670,7 @@ function runGame() {
       else enterDawn();
     }
     const tip = tips.active(ambientClock);
-    renderer.draw(world.state, screen, best, { timeOffset: screen === SCREEN_CUTSCENE || screen === SCREEN_DAWN || screen === SCREEN_EPILOGUE || screen === SCREEN_OVER || screen === SCREEN_PROLOGUE || screen === SCREEN_VICTORY ? ambientClock : 0, demo, cutscene, prologuePage, epiloguePage, epilogueCard, badges, skin, tip: tip?.text ?? null, tipAlpha: tip?.alpha ?? 0 });
+    renderer.draw(world.state, screen, best, { timeOffset: screen === SCREEN_CUTSCENE || screen === SCREEN_DAWN || screen === SCREEN_EPILOGUE || screen === SCREEN_OVER || screen === SCREEN_PROLOGUE || screen === SCREEN_VICTORY ? ambientClock : 0, demo, cutscene, prologuePage, epiloguePage, epilogueCard, badges, skin, selection, tip: tip?.text ?? null, tipAlpha: tip?.alpha ?? 0 });
     input.endFrame();
   }
 

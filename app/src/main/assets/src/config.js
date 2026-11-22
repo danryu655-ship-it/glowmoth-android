@@ -92,6 +92,46 @@ export const SHIELD = {
 export const SKILL_BUTTON = { x: 1120, y: 24, w: 132, h: 40 };
 export const BACK_BUTTON = { x: 550, y: 662, w: 180, h: 38 };
 
+// ANDROID BUILD ONLY (v1.9.0) — mode + character select, shown from the
+// title before a run (friend feedback 22 Nov 2026: "saat di tampilan mau
+// masuk game ada pilihan mode story dan mode endless"). Story is the game
+// as it is now (prologue, dawn stories, companions joining, epilogue);
+// Endless skips the story beats — nights run on until the moth falls,
+// bosses and companions still show up. The last pick is remembered.
+export const SELECT_KEY = 'glowmoth.select.v1';
+// ANDROID BUILD ONLY (v1.9.0 round 2) — the mode is picked FIRST, on its
+// own screen. QUEST is the story as it is now (Luma, prologue, dawn
+// stories, companions joining, epilogue); TANPA AKHIR goes to the
+// character picker and then plays with no story beats. The 'feat' line
+// is the one-line summary under each card's description.
+export const MODES = [
+  { id: 'quest', name: 'QUEST', tag: 'ALUR CERITA', color: '#ffd54f', desc: 'Alur cerita seperti sekarang — prolog, cerita fajar, teman bergabung, dan epilog.', feat: 'LUMA · PROLOG · 15 MOMEN CERITA' },
+  { id: 'endless', name: 'TANPA AKHIR', tag: 'MAIN SAMPAI BOSAN', color: '#8ff0d0', desc: 'Pilih karakter dulu, lalu main tanpa potongan cerita. Malam jalan terus.', feat: '5 KARAKTER · TANPA CERITA · MALAM TANPA AKHIR' },
+];
+export const MODE_CARDS = [
+  { id: 'quest', x: 150, y: 210, w: 460, h: 240 },
+  { id: 'endless', x: 670, y: 210, w: 460, h: 240 },
+];
+// Playable characters: the five moths already in the game, no new art.
+// Flare stays for everyone; the passive is what differs. The chosen
+// character does NOT re-join on their night — they are already you.
+// The 'skill' line is the passive's name, shown on each character card.
+export const CHARACTERS = [
+  { id: 'luma', name: 'LUMA', tag: 'SEIMBANG', skill: 'FLARE BURST', portrait: 'luma', color: '#f59e0b', desc: 'Seimbang. Flare seperti biasa.' },
+  { id: 'lumi', name: 'LUMI', tag: 'MAGNET', skill: 'MOTE MAGNET', portrait: 'lumi', color: '#8ff0d0', desc: 'Kunang ketarik dari jauh sejak malam 1.' },
+  { id: 'lulu', name: 'LULU', tag: 'PELINDUNG', skill: "LULU'S SHIELD", portrait: 'lulu', color: '#8ecbff', desc: 'Mulai 4 hati + perisai tiap 60 detik.' },
+  { id: 'koko', name: 'KOKO', tag: 'PENYERANG', skill: 'KOKO EMBER', portrait: 'companionKoko', color: '#fb923c', desc: 'Bakar 1 shade terdekat tiap 8 detik.' },
+  { id: 'zephyr', name: 'ZEPHYR', tag: 'CEPAT', skill: 'ZEPHYR DRIFT', portrait: 'companionZephyr', color: '#c084fc', desc: 'Semua bahaya 25% lebih lambat.' },
+];
+export const CHARACTER_CARDS = [
+  { id: 'luma', x: 85, y: 150, w: 210, h: 380 },
+  { id: 'lumi', x: 310, y: 150, w: 210, h: 380 },
+  { id: 'lulu', x: 535, y: 150, w: 210, h: 380 },
+  { id: 'koko', x: 760, y: 150, w: 210, h: 380 },
+  { id: 'zephyr', x: 985, y: 150, w: 210, h: 380 },
+];
+export const START_BUTTON = { x: 490, y: 560, w: 300, h: 44 };
+
 // ANDROID BUILD ONLY (v1.6.0) — moth skins, picked on the title screen.
 // The portraits are the user's own SVGs (Golden Sun, Cyber Neon); the
 // default skin uses the Luma portrait. The moth in flight is still drawn

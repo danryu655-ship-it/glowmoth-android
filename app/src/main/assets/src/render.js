@@ -3,12 +3,14 @@
 // work on one canvas, with no image or font file anywhere.
 
 import {
-  BACK_BUTTON, BOSS, BOSS_KINDS, CUTSCENE, CUTSCENES, FIELD, LANTERN, PALETTE as C, RUN, SHIELD, SKILL_BUTTON, SKILL_GUIDE, BADGE_GUIDE, STRINGS, SKIN_BUTTON, SKIN_CARDS, SKINS, SKIN_PALETTES, bossKind,
+  BACK_BUTTON, BOSS, BOSS_KINDS, CHARACTER_CARDS, CHARACTERS, CUTSCENE, CUTSCENES, FIELD, LANTERN, MODE_CARDS, MODES, PALETTE as C, RUN, SHIELD, SKILL_BUTTON, SKILL_GUIDE, BADGE_GUIDE, START_BUTTON, STRINGS, SKIN_BUTTON, SKIN_CARDS, SKINS, SKIN_PALETTES, bossKind,
 } from './config.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_SKILLS = 'skills';
 export const SCREEN_SKINS = 'skins';
+export const SCREEN_MODE = 'mode';
+export const SCREEN_CHARACTER = 'character';
 export const SCREEN_PLAY = 'play';
 export const SCREEN_PAUSED = 'paused';
 export const SCREEN_DAWN = 'dawn';
@@ -1655,6 +1657,186 @@ export function createRenderer(canvas) {
     void time;
   }
 
+  // ANDROID BUILD ONLY (v1.9.0 round 2) — pick a mode first. A tap on
+  // a card acts at once: QUEST starts the run as Luma (the story as it
+  // is now); TANPA AKHIR goes to the character picker. Enter uses the
+  // remembered mode; Esc returns to the title. The gold badge marks the
+  // last mode played.
+  function drawModeScreen(state, selection, time) {
+    overlay(0.58);
+    ctx.save();
+    roundedRect(ctx, 40, 28, 1200, 668, 18);
+    ctx.fillStyle = C.panel;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 207, 107, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+    label(ctx, 'PILIH MODE', W / 2, 120, { font: `700 42px ${TITLE_FONT}`, color: C.amber, align: 'center', spacing: 4, glow: 22, glowColor: 'rgba(255, 207, 107, 0.5)' });
+    label(ctx, 'Dua cara main — ikuti alur cerita, atau main sampai bosan', W / 2, 158, { font: `italic 500 19px ${TITLE_FONT}`, color: 'rgba(247, 241, 220, 0.92)', align: 'center' });
+
+    for (const mode of MODES) {
+      const card = MODE_CARDS.find((entry) => entry.id === mode.id);
+      const cx = card.x + card.w / 2;
+      const selected = selection.mode === mode.id;
+      ctx.save();
+      roundedRect(ctx, card.x, card.y, card.w, card.h, 18);
+      ctx.fillStyle = selected ? 'rgba(255, 207, 107, 0.14)' : 'rgba(5, 8, 14, 0.5)';
+      ctx.fill();
+      ctx.strokeStyle = selected ? 'rgba(255, 207, 107, 0.95)' : 'rgba(169, 183, 201, 0.35)';
+      ctx.lineWidth = selected ? 2.5 : 1.4;
+      ctx.stroke();
+      ctx.restore();
+      label(ctx, mode.name, cx, card.y + 62, { font: `700 26px ${MONO_FONT}`, color: C.cream, align: 'center', spacing: 1 });
+      label(ctx, mode.tag, cx, card.y + 90, { font: `700 12px ${MONO_FONT}`, color: mode.color, align: 'center', spacing: 1 });
+      const descLines = wrapLines(mode.desc, 420, `500 15px ${BODY_FONT}`);
+      let lineY = card.y + 128;
+      for (const line of descLines) {
+        label(ctx, line, cx, lineY, { font: `500 15px ${BODY_FONT}`, color: 'rgba(220, 228, 238, 0.95)', align: 'center' });
+        lineY += 20;
+      }
+      label(ctx, mode.feat, cx, card.y + 188, { font: `700 12px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 1 });
+      if (selected) drawCheckBadge(card.x + card.w - 26, card.y + 26);
+    }
+
+    label(ctx, 'Ketuk QUEST untuk langsung main sebagai Luma  ·  ketuk TANPA AKHIR untuk pilih karakter', W / 2, 500, { font: `500 15px ${BODY_FONT}`, color: 'rgba(247, 241, 220, 0.85)', align: 'center' });
+    const lastMode = MODES.find((m) => m.id === selection.mode) ?? MODES[0];
+    const lastChar = CHARACTERS.find((c) => c.id === selection.character) ?? CHARACTERS[0];
+    label(ctx, `Terakhir dimainkan: ${lastMode.name} · ${lastChar.name}`, W / 2, 540, { font: `700 13px ${MONO_FONT}`, color: C.textDim, align: 'center', spacing: 1 });
+
+    ctx.save();
+    roundedRect(ctx, BACK_BUTTON.x, BACK_BUTTON.y, BACK_BUTTON.w, BACK_BUTTON.h, 19);
+    ctx.fillStyle = 'rgba(5, 8, 14, 0.72)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 207, 107, 0.5)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.restore();
+    const backCx = BACK_BUTTON.x + BACK_BUTTON.w / 2;
+    const backCy = BACK_BUTTON.y + BACK_BUTTON.h / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(backCx - 38, backCy);
+    ctx.lineTo(backCx - 28, backCy - 7);
+    ctx.lineTo(backCx - 28, backCy + 7);
+    ctx.closePath();
+    ctx.fillStyle = C.cream;
+    ctx.fill();
+    ctx.restore();
+    label(ctx, 'KEMBALI', backCx + 10, backCy + 5, { font: `700 14px ${MONO_FONT}`, color: C.cream, align: 'center' });
+    void state;
+    void time;
+  }
+
+  // ANDROID BUILD ONLY (v1.9.0 round 2) — the Endless character picker:
+  // five moths, Flare for everyone, the passive is what differs. Tap a
+  // card to choose it (saved at once); MULAI MAIN or Enter starts the
+  // run, KEMBALI or Esc returns to the mode picker. The cards are tall
+  // with big portraits (Ø150) and a skill-name row, so the name sits
+  // clear of the portrait ring and the card bottom is not empty.
+  function drawCharacterScreen(state, selection, time) {
+    overlay(0.58);
+    ctx.save();
+    roundedRect(ctx, 40, 28, 1200, 668, 18);
+    ctx.fillStyle = C.panel;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 207, 107, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+    label(ctx, 'PILIH KARAKTER', W / 2, 62, { font: `700 42px ${TITLE_FONT}`, color: C.amber, align: 'center', spacing: 4, glow: 22, glowColor: 'rgba(255, 207, 107, 0.5)' });
+    label(ctx, 'Flare tetap untuk semua — yang beda pasifnya', W / 2, 100, { font: `italic 500 19px ${TITLE_FONT}`, color: 'rgba(247, 241, 220, 0.92)', align: 'center' });
+
+    for (const option of CHARACTERS) {
+      const card = CHARACTER_CARDS.find((entry) => entry.id === option.id);
+      const cx = card.x + card.w / 2;
+      const selected = selection.character === option.id;
+      ctx.save();
+      roundedRect(ctx, card.x, card.y, card.w, card.h, 18);
+      ctx.fillStyle = selected ? 'rgba(255, 207, 107, 0.14)' : 'rgba(5, 8, 14, 0.5)';
+      ctx.fill();
+      ctx.strokeStyle = selected ? 'rgba(255, 207, 107, 0.95)' : 'rgba(169, 183, 201, 0.35)';
+      ctx.lineWidth = selected ? 2.5 : 1.4;
+      ctx.stroke();
+      ctx.restore();
+      const img = portraits[option.portrait];
+      if (portraitReady(img)) {
+        drawPortrait(img, cx, 280, 150, hexA(option.color, 0.30), hexA(option.color, 0.95));
+      } else {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, 280, 75, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(12, 18, 28, 1)';
+        ctx.fill();
+        ctx.strokeStyle = option.color;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.restore();
+        label(ctx, option.name[0], cx, 281, { font: `700 56px ${BODY_FONT}`, color: option.color, align: 'center', baseline: 'middle' });
+      }
+      label(ctx, option.name, cx, 386, { font: `700 19px ${MONO_FONT}`, color: C.cream, align: 'center', spacing: 1 });
+      label(ctx, option.tag, cx, 410, { font: `700 12px ${MONO_FONT}`, color: option.color, align: 'center', spacing: 1 });
+      label(ctx, option.skill, cx, 440, { font: `700 14px ${MONO_FONT}`, color: option.color, align: 'center', spacing: 1 });
+      const descLines = wrapLines(option.desc, 190, `500 13px ${BODY_FONT}`);
+      let lineY = 466;
+      for (const line of descLines) {
+        label(ctx, line, cx, lineY, { font: `500 13px ${BODY_FONT}`, color: 'rgba(220, 228, 238, 0.95)', align: 'center' });
+        lineY += 17;
+      }
+      if (selected) drawCheckBadge(card.x + card.w - 26, card.y + 26);
+    }
+
+    ctx.save();
+    roundedRect(ctx, START_BUTTON.x, START_BUTTON.y, START_BUTTON.w, START_BUTTON.h, 22);
+    ctx.fillStyle = 'rgba(255, 207, 107, 0.16)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 207, 107, 0.95)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+    label(ctx, 'MULAI MAIN', START_BUTTON.x + START_BUTTON.w / 2, START_BUTTON.y + START_BUTTON.h / 2 + 6, { font: `700 18px ${MONO_FONT}`, color: C.cream, align: 'center', spacing: 2 });
+
+    ctx.save();
+    roundedRect(ctx, BACK_BUTTON.x, BACK_BUTTON.y, BACK_BUTTON.w, BACK_BUTTON.h, 19);
+    ctx.fillStyle = 'rgba(5, 8, 14, 0.72)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 207, 107, 0.5)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.restore();
+    const backCx = BACK_BUTTON.x + BACK_BUTTON.w / 2;
+    const backCy = BACK_BUTTON.y + BACK_BUTTON.h / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(backCx - 38, backCy);
+    ctx.lineTo(backCx - 28, backCy - 7);
+    ctx.lineTo(backCx - 28, backCy + 7);
+    ctx.closePath();
+    ctx.fillStyle = C.cream;
+    ctx.fill();
+    ctx.restore();
+    label(ctx, 'KEMBALI', backCx + 10, backCy + 5, { font: `700 14px ${MONO_FONT}`, color: C.cream, align: 'center' });
+    void state;
+    void time;
+  }
+
+  // Gold circle with a check mark, marking the selected card.
+  function drawCheckBadge(x, y) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, 13, 0, Math.PI * 2);
+    ctx.fillStyle = C.amber;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(5, 8, 14, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y);
+    ctx.lineTo(x - 1, y + 4);
+    ctx.lineTo(x + 6, y - 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawButton(text, y) {
     roundedRect(ctx, W / 2 - 260, y - 28, 520, 54, 27);
     ctx.fillStyle = 'rgba(255, 207, 107, 0.09)';
@@ -1964,13 +2146,15 @@ export function createRenderer(canvas) {
     overlay(0.58);
     // ANDROID BUILD ONLY (v1.3.1) — on the nights Lumi (3) and Lulu (6) join,
     // their portrait takes centre stage, like the approved preview.
-    const join = state.night === 3
+    // ANDROID BUILD ONLY (v1.9.0) — the chosen moth never "joins" on
+    // its night: it is already the player, so no portrait card here.
+    const join = state.night === 3 && state.character !== 'lumi'
       ? { img: portraits.lumi, name: 'LUMI', glow: 'rgba(143, 240, 208, 0.30)' }
-      : state.night === 6
+      : state.night === 6 && state.character !== 'lulu'
         ? { img: portraits.lulu, name: 'LULU', glow: 'rgba(142, 203, 255, 0.30)' }
-        : state.night === 9
+        : state.night === 9 && state.character !== 'koko'
           ? { img: portraits.companionKoko, name: 'KOKO', glow: 'rgba(251, 146, 60, 0.30)' }
-          : state.night === 12
+          : state.night === 12 && state.character !== 'zephyr'
             ? { img: portraits.companionZephyr, name: 'ZEPHYR', glow: 'rgba(192, 132, 252, 0.30)' }
             : null;
     if (join !== null && portraitReady(join.img)) {
@@ -2020,11 +2204,13 @@ export function createRenderer(canvas) {
       // v1.4.6: the night's own story line, not the generic hint — the hint
       // is already in the boss cutscene (Lumi's last beat), and without this
       // the night-9 Kronik line never appeared anywhere.
-      const bossStory = state.night <= STRINGS.dawnStory.length
-        ? STRINGS.dawnStory[state.night - 1]
-        : nextKind === 'ratu'
+      // ANDROID BUILD ONLY (v1.9.0) — Endless shows the generic boss
+      // line, never the Kronik line.
+      const bossStory = state.mode === 'endless' || state.night > STRINGS.dawnStory.length
+        ? nextKind === 'ratu'
           ? 'Jaring bayangan menutupi langit. Nyalakan keempat lampion — setiap cahaya yang menyala membakar jaring sang Ratu.'
-          : 'Kegelapan pekat turun dari langit. Nyalakan keempat lampion — setiap cahaya yang menyala melukai Dark Pekat.';
+          : 'Kegelapan pekat turun dari langit. Nyalakan keempat lampion — setiap cahaya yang menyala melukai Dark Pekat.'
+        : STRINGS.dawnStory[state.night - 1];
       const bossLines = wrapLines(bossStory, 920, `italic 500 21px ${TITLE_FONT}`);
       let bossY = 356;
       for (const line of bossLines) {
@@ -2046,9 +2232,13 @@ export function createRenderer(canvas) {
     // v1.4.6: the line is WRAPPED — the Kronik lines are long, and a single
     // unwrapped line ran off both edges of the screen (reported 18 Nov).
     // Everything below the story shifts down with the line count.
-    const dawnStory = state.night <= STRINGS.dawnStory.length
-      ? STRINGS.dawnStory[state.night - 1]
-      : `Malam ${state.night} berlalu. Luma, Lumi, dan Lulu menjaga taman bersama.`;
+    // ANDROID BUILD ONLY (v1.9.0) — Endless shows a neutral line, never
+    // the Kronik line (it would name rescues that never happened).
+    const dawnStory = state.mode === 'endless'
+      ? `Malam ${state.night} berlalu. Taman kembali tenang — untuk sesaat.`
+      : state.night <= STRINGS.dawnStory.length
+        ? STRINGS.dawnStory[state.night - 1]
+        : `Malam ${state.night} berlalu. Luma, Lumi, dan Lulu menjaga taman bersama.`;
     const storyLines = wrapLines(dawnStory, 920, `italic 500 22px ${TITLE_FONT}`);
     let storyY = 260;
     for (const line of storyLines) {
@@ -2119,6 +2309,8 @@ export function createRenderer(canvas) {
     if (screen === SCREEN_TITLE) drawTitle(state, best, time, extra.demo === true);
     else if (screen === SCREEN_SKILLS) drawSkills(state, extra.badges ?? {}, time);
     else if (screen === SCREEN_SKINS) drawSkinScreen(state, extra.skin ?? 'luma', time);
+    else if (screen === SCREEN_MODE) drawModeScreen(state, extra.selection ?? { mode: 'quest', character: 'luma' }, time);
+    else if (screen === SCREEN_CHARACTER) drawCharacterScreen(state, extra.selection ?? { mode: 'endless', character: 'luma' }, time);
     else if (screen === SCREEN_PROLOGUE) drawPrologueScreen(state, extra.prologuePage ?? 0, time);
     else if (screen === SCREEN_EPILOGUE) drawEpilogueScreen(state, extra.epiloguePage ?? 0, time, extra.epilogueCard === true);
     else if (screen === SCREEN_CUTSCENE) {
