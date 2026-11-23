@@ -128,8 +128,8 @@ export const CHARACTERS = [
   { id: 'luma', name: 'LUMA', tag: 'SEIMBANG', skill: 'FLARE BURST', portrait: 'luma', color: '#f59e0b', hp: 4, speed: 5, desc: 'Seimbang. Flare seperti biasa.' },
   { id: 'lumi', name: 'LUMI', tag: 'MAGNET', skill: 'MOTE MAGNET', portrait: 'lumi', color: '#8ff0d0', hp: 3, speed: 2, desc: 'Kunang ketarik dari jauh sejak malam 1.' },
   { id: 'lulu', name: 'LULU', tag: 'PELINDUNG', skill: "LULU'S SHIELD", portrait: 'lulu', color: '#8ecbff', hp: 2, speed: 3, desc: 'Mulai 2 hati + perisai tiap 60 detik.' },
-  { id: 'koko', name: 'KOKO', tag: 'PENYERANG', skill: 'KOKO EMBER', portrait: 'companionKoko', color: '#fb923c', hp: 2, speed: 4, desc: 'Bakar 1 shade terdekat tiap 8 detik.' },
-  { id: 'zephyr', name: 'ZEPHYR', tag: 'CEPAT', skill: 'ZEPHYR DRIFT', portrait: 'companionZephyr', color: '#c084fc', hp: 2, speed: 3, desc: 'Semua bahaya 25% lebih lambat.' },
+  { id: 'koko', name: 'KOKO', tag: 'PENYERANG', skill: 'KOKO EMBER', portrait: 'koko', color: '#fb923c', hp: 2, speed: 4, desc: 'Bakar 1 shade terdekat tiap 8 detik.' },
+  { id: 'zephyr', name: 'ZEPHYR', tag: 'CEPAT', skill: 'ZEPHYR DRIFT', portrait: 'zephyr', color: '#c084fc', hp: 2, speed: 3, desc: 'Semua bahaya 25% lebih lambat.' },
 ];
 export const CHARACTER_CARDS = [
   { id: 'luma', x: 85, y: 150, w: 210, h: 396 },
@@ -169,13 +169,24 @@ export const SKIN_BUTTON = { x: 976, y: 24, w: 132, h: 40 };
 // hero's hp (CHARACTERS), Flare costs 1 Spark, refill 1 per 5 motes,
 // max 2.
 export const TIPS = [
-  { id: 'collect', text: 'Terbang menyentuh kunang emas untuk mengambil cahayanya — tiap lentera butuh 6 kunang.' },
-  { id: 'flare', text: 'Shade mendekat! Ketuk layar / Spasi untuk Flare.' },
-  { id: 'spark', text: 'Flare memakai 1 Spark — isi ulang 1 tiap 5 motes (maks 2).' },
-  { id: 'lantern', text: 'Lentera menyala! Kumpulkan kunang untuk lentera berikutnya.' },
-  { id: 'lives', text: 'Kena serang: −1 hati. Cari embun untuk memulihkan 1 hati.' },
-  { id: 'dew', text: 'Embun muncul! Sentuh untuk +1 hati & +50 poin.' },
+  { id: 'collect', target: 'mote', text: 'Terbang ke kunang emas — sentuh untuk mengambil cahayanya. 6 kunang = 1 lentera menyala.' },
+  { id: 'flare', target: 'shade', text: 'Shade mendekat! Ketuk layar / tekan Spasi — Flare mengusirnya.' },
+  { id: 'spark', target: 'sparks', text: 'Flare memakai 1 Spark. Isi ulang: kumpulkan 5 kunang = +1 Spark (maks 2).' },
+  { id: 'lantern', target: 'lantern', text: 'Lentera menyala! Terbang ke kunang berikutnya untuk lentera selanjutnya.' },
+  { id: 'lives', target: 'lives', text: 'Kena serang: −1 hati. Cari embun untuk memulihkan 1 hati.' },
+  { id: 'dew', target: 'dew', text: 'Embun muncul! Terbang ke embun biru — sentuh untuk +1 hati & +50 poin.' },
 ];
+// ANDROID BUILD ONLY (v1.9.7) — one skill tip per hero, shown once after
+// the collect tip on the first run: what the skill does and what YOU do.
+// Flare is the only skill the player presses (Luma); the other passives
+// run on their own, so their tip says so plainly.
+export const SKILL_TIPS = {
+  luma: 'Skill Flare Burst: ketuk layar / tekan Spasi untuk Flare — usir shade & hancurkan dart.',
+  lumi: 'Skill Mote Magnet: kunang ketarik dari jauh otomatis — kamu tinggal terbang mendekat.',
+  lulu: "Skill Lulu's Shield: perisai muncul otomatis tiap 60 detik — saat menyala, kamu kebal.",
+  koko: 'Skill Koko Ember: shade terdekat terbakar otomatis tiap 8 detik — fokus saja kumpulkan kunang.',
+  zephyr: 'Skill Zephyr Drift: semua bahaya 25% lebih lambat — manfaatkan untuk menghindar.',
+};
 export const SKIN_CARDS = [
   { id: 'luma', x: 150, y: 150, w: 340, h: 440 },
   { id: 'golden', x: 470, y: 150, w: 340, h: 440 },
